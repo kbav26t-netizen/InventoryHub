@@ -26,7 +26,7 @@ jobs:
           gradle-version: 8.6
 
       - name: Build APK
-        run: gradle assembleDebug --stacktrace
+        run: ./gradlew assembleDebug --stacktrace
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
