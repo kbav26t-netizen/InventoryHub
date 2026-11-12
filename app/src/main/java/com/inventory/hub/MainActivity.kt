@@ -174,8 +174,8 @@ fun PluginCard(
     onDownload: () -> Unit
 ) {
     Card(
-        modifier = Modifier.then(if (isInstalled) Modifier.clickable { onLaunch() } else Modifier),
         modifier = Modifier
+            .then(if (isInstalled) Modifier.clickable { onLaunch() } else Modifier)
             .fillMaxWidth()
             .height(120.dp),
         shape = RoundedCornerShape(16.dp)
