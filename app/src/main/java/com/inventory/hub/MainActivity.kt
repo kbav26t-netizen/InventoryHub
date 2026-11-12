@@ -152,13 +152,14 @@ fun HubScreen(
             // Кнопки плагинов
             plugins.forEach { plugin ->
                 val isInstalled = installedPlugins[plugin.id] ?: false
-    Card(
-        modifier = Modifier
-            .then(if (isInstalled) Modifier.clickable { onLaunch() } else Modifier)
-            .fillMaxWidth()
-            .height(120.dp),
-        shape = RoundedCornerShape(16.dp)
-    ) {
+                PluginCard(
+                    plugin = plugin,
+                    isInstalled = isInstalled,
+                    onLaunch = { onLaunchPlugin(plugin) },
+                    onDownload = { onDownloadPlugin(plugin) }
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
             
             Spacer(modifier = Modifier.weight(1f))
         }
@@ -166,6 +167,12 @@ fun HubScreen(
 }
 
 @Composable
+fun PluginCard(
+    plugin: PluginInfo,
+    isInstalled: Boolean,
+    onLaunch: () -> Unit,
+    onDownload: () -> Unit
+) {
     Card(
         modifier = Modifier
             .then(if (isInstalled) Modifier.clickable { onLaunch() } else Modifier)
@@ -173,10 +180,52 @@ fun HubScreen(
             .height(120.dp),
         shape = RoundedCornerShape(16.dp)
     ) {
-    Card(
-        modifier = Modifier
-            .then(if (isInstalled) Modifier.clickable { onLaunch() } else Modifier)
-            .fillMaxWidth()
-            .height(120.dp),
-        shape = RoundedCornerShape(16.dp)
-    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = plugin.icon,
+                contentDescription = null,
+                modifier = Modifier.size(48.dp),
+                tint = if (isInstalled) MaterialTheme.colorScheme.primary
+                       else Color.Gray
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    plugin.name,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isInstalled) MaterialTheme.colorScheme.onSurface
+                            else Color.Gray
+                )
+                Text(
+                    plugin.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (isInstalled) MaterialTheme.colorScheme.onSurfaceVariant
+                            else Color.Gray
+                )
+            }
+            if (isInstalled) {
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = "Установлено",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(32.dp)
+                )
+            } else {
+                Button(
+                    onClick = onDownload,
+                    modifier = Modifier.height(40.dp)
+                ) {
+                    Icon(Icons.Default.Download, contentDescription = null)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Скачать")
+                }
+            }
+        }
+    }
+}
