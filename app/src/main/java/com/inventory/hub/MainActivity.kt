@@ -172,7 +172,7 @@ fun PluginCard(
     onLaunch: () -> Unit,
     onDownload: () -> Unit
 ) {
-    OutlinedCard(
+    Card(
         onClick = if (isInstalled) onLaunch else {},
         modifier = Modifier
             .fillMaxWidth()
