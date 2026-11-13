@@ -43,7 +43,7 @@ class MainActivity : ComponentActivity() {
             description = "Сканирование и сохранение в историю",
             icon = Icons.Default.QrCodeScanner,
             packageName = "com.inventory.scanner",
-            githubReleaseUrl = "https://github.com/kbav26t-netizen/InventoryScanner/releases/latest/download/app-debug.apk"
+            githubReleaseUrl = "https://github.com/kbav26t-netizen/ScannerPlugin/releases/latest/download/app-arm64-v8a-debug.apk"
         ),
         PluginInfo(
             id = "counter",
@@ -86,9 +86,21 @@ class MainActivity : ComponentActivity() {
     }
     
     private fun launchPlugin(plugin: PluginInfo) {
-        val intent = packageManager.getLaunchIntentForPackage(plugin.packageName)
-        if (intent != null) {
+        val intent = Intent().apply {
+            component = android.content.ComponentName(
+                plugin.packageName,
+                "${plugin.packageName}.MainActivity"
+            )
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        try {
             startActivity(intent)
+        } catch (e: Exception) {
+            android.widget.Toast.makeText(
+                this@MainActivity, 
+                "Плагин не установлен или повреждён", 
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
         }
     }
     
