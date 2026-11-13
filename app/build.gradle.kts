@@ -32,6 +32,12 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    applicationVariants.configureEach {
+        outputs.configureEach {
+            (this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl)?.outputFileName = "inventory-hub-${name}.apk"
+        }
+    }
 }
 
 dependencies {
@@ -42,19 +48,11 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.8.0")
     implementation("androidx.navigation:navigation-compose:2.7.4")
-    
-    // Room DB для хранения данных
+
     val roomVersion = "2.6.0"
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
-    
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-}
 
-android.applicationVariants.all {
-    variant ->
-    variant.outputs.all {
-        outputFileName = "inventory-hub-${variant.name}.apk"
-    }
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 }
