@@ -93,6 +93,7 @@ class MainActivity : ComponentActivity() {
                 if (products.isNotEmpty()) {
                     db.productDao().insertAll(products)
                     withContext(Dispatchers.Main) {
+                        productCount = products.size
                         Toast.makeText(this@MainActivity, "Успешно загружено: ${products.size} товаров", Toast.LENGTH_LONG).show()
                     }
                 } else {
