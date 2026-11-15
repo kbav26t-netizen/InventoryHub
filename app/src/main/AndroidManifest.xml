@@ -2,7 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-        <queries>
+    
+    <queries>
         <package android:name="com.inventory.scanner" />
         <package android:name="com.inventory.counter" />
         <package android:name="com.inventory.exporter" />
@@ -13,6 +14,7 @@
         android:label="InventoryHub"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -21,5 +23,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <provider
+            android:name=".ProductProvider"
+            android:authorities="com.inventory.hub.provider"
+            android:exported="true"
+            android:grantUriPermissions="true" />
+            
     </application>
 </manifest>
