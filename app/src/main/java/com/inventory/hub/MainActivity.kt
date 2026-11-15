@@ -51,7 +51,7 @@ class MainActivity : ComponentActivity() {
         PluginInfo("exporter", "Экспорт Excel", "Выгрузка данных в таблицу", Icons.Default.TableChart, "com.inventory.exporter", "https://github.com/kbav26t-netizen/InventoryExporter/releases/latest/download/exporter-plugin-debug.apk")
     )
 
-    private val filePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri?
+    private val filePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) loadFile(uri)
     }
 
