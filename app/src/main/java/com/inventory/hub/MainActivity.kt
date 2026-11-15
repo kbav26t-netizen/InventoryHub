@@ -226,7 +226,8 @@ fun HubScreen(plugins: List<PluginInfo>, productCount: Int, onLaunchPlugin: (Plu
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {
                         Text("Загрузить справочник", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text("Поддерживается: CSV, XLS, XLSX\
+                        Text("Поддерживается: CSV, XLS, XLSX", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("В базе: $productCount товаров", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 В базе: $productCount товаров", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
