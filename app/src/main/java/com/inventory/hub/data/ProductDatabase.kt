@@ -21,10 +21,10 @@ interface ProductDao {
 
     @Query("SELECT * FROM products WHERE barcode = :barcode LIMIT 1")
     fun getByBarcodeSync(barcode: String): ProductEntity?
-    
+
     @Query("SELECT COUNT(*) FROM products")
     suspend fun getCount(): Int
-    
+
     @Query("DELETE FROM products")
     suspend fun clearAll()
 }

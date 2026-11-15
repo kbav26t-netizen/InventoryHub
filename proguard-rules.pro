@@ -1,0 +1,4 @@
+-keep class org.apache.** { *; }
+-dontwarn org.apache.**
+-keep class com.inventory.hub.data.** { *; }
+-keepclassmembers class com.inventory.hub.data.** { *; }

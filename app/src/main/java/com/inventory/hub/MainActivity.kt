@@ -28,6 +28,8 @@ import com.inventory.hub.data.ProductEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.apache.poi.ss.usermodel.CellType
+import org.apache.poi.ss.usermodel.WorkbookFactory
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
@@ -44,8 +46,9 @@ class MainActivity : ComponentActivity() {
         PluginInfo("exporter", "Экспорт Excel", "Выгрузка данных в таблицу", Icons.Default.TableChart, "com.inventory.exporter", "https://github.com/kbav26t-netizen/InventoryExporter/releases/latest/download/exporter-plugin-debug.apk")
     )
 
+    // Принимаем любой файл, фильтрацию делаем по расширению внутри
     private val filePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) loadCsvFile(uri)
+        if (uri != null) loadFile(uri)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,48 +56,138 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    HubScreen(plugins = plugins, onLaunchPlugin = ::launchPlugin, onDownloadPlugin = ::downloadPlugin, onLoadReference = { filePicker.launch("text/csv") })
+                    HubScreen(
+                        plugins = plugins, 
+                        onLaunchPlugin = ::launchPlugin, 
+                        onDownloadPlugin = ::downloadPlugin, 
+                        onLoadReference = { filePicker.launch("*/*") }
+                    )
                 }
             }
         }
     }
 
-    private fun loadCsvFile(uri: Uri) {
-        val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO)
+    private fun loadFile(uri: Uri) {
+        val scope = kotlinx.coroutines.CoroutineScope(Dispatchers.IO)
         scope.launch {
             try {
-                db.productDao().clearAll()
-                val products = mutableListOf<ProductEntity>()
-                
-                contentResolver.openInputStream(uri)?.use { inputStream ->
-                    BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).useLines { lines ->
-                        lines.drop(1).forEach { line -> // Пропускаем заголовок
-                            val parts = line.split(";") // Если в Excel сохраняли как "CSV (точка с запятой)"
-                            if (parts.size >= 3) {
-                                val article = parts[0].trim()
-                                val barcode = parts[1].trim()
-                                val name = parts[2].trim()
-                                val qty = parts.getOrNull(3)?.trim()?.toIntOrNull() ?: 0
-                                if (barcode.isNotBlank()) {
-                                    products.add(ProductEntity(barcode, name, article, qty))
-                                }
-                            }
-                        }
-                    }
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Обработка файла...", Toast.LENGTH_SHORT).show()
                 }
                 
+                db.productDao().clearAll()
+                val products = mutableListOf<ProductEntity>()
+                val fileName = getFileName(uri) ?: ""
+
+                when {
+                    fileName.endsWith(".csv", ignoreCase = true) -> parseCsv(uri, products)
+                    fileName.endsWith(".xls", ignoreCase = true) || fileName.endsWith(".xlsx", ignoreCase = true) -> parseExcel(uri, products)
+                    else -> {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@MainActivity, "Неподдерживаемый формат. Используйте CSV или Excel", Toast.LENGTH_LONG).show()
+                        }
+                        return@launch
+                    }
+                }
+
                 if (products.isNotEmpty()) {
                     db.productDao().insertAll(products)
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(this@MainActivity, "Загружено ${products.size} товаров", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this@MainActivity, "Успешно загружено: ${products.size} товаров", Toast.LENGTH_LONG).show()
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, "Файл пуст или не содержит данных", Toast.LENGTH_LONG).show()
                     }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@MainActivity, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
                 }
+                e.printStackTrace()
             }
         }
+    }
+
+    private fun parseCsv(uri: Uri, products: MutableList<ProductEntity>) {
+        contentResolver.openInputStream(uri)?.use { inputStream ->
+            BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).useLines { lines ->
+                lines.drop(1).forEach { line ->
+                    val parts = line.split(";")
+                    if (parts.size >= 4) {
+                        val article = parts[1].trim() // Колонка B
+                        val barcode = parts[2].trim() // Колонка C
+                        val name = parts[3].trim()    // Колонка D
+                        val qty = parts.getOrNull(4)?.trim()?.toIntOrNull() ?: 0 // Колонка E
+                        if (barcode.isNotBlank()) {
+                            products.add(ProductEntity(barcode, name, article, qty))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun parseExcel(uri: Uri, products: MutableList<ProductEntity>) {
+        contentResolver.openInputStream(uri)?.use { inputStream ->
+            val workbook = WorkbookFactory.create(inputStream)
+            val sheet = workbook.getSheetAt(0)
+            
+            // Начинаем с 1, чтобы пропустить заголовок (строка 0)
+            for (i in 1..sheet.lastRowNum) {
+                val row = sheet.getRow(i) ?: continue
+                
+                val article = getCellValue(row.getCell(1)) // B
+                val barcode = getCellValue(row.getCell(2)) // C
+                val name = getCellValue(row.getCell(3))    // D
+                val qtyStr = getCellValue(row.getCell(4))  // E
+                val qty = qtyStr.toIntOrNull() ?: 0
+
+                if (barcode.isNotBlank()) {
+                    products.add(ProductEntity(barcode, name, article, qty))
+                }
+            }
+            workbook.close()
+        }
+    }
+
+    private fun getCellValue(cell: org.apache.poi.ss.usermodel.Cell?): String {
+        if (cell == null) return ""
+        return when (cell.cellType) {
+            CellType.STRING -> cell.stringCellValue.trim()
+            CellType.NUMERIC -> {
+                // Штрихкоды в Excel часто хранятся как числа. Преобразуем Double в Long, чтобы избежать "4.6E12"
+                val num = cell.numericCellValue
+                if (num == num.toLong().toDouble()) num.toLong().toString().trim()
+                else num.toString().trim()
+            }
+            CellType.BOOLEAN -> cell.booleanCellValue.toString().trim()
+            CellType.FORMULA -> {
+                try { cell.numericCellValue.toLong().toString().trim() } 
+                catch (e: Exception) { cell.stringCellValue.trim() }
+            }
+            else -> ""
+        }
+    }
+
+    private fun getFileName(uri: Uri): String? {
+        var result: String? = null
+        if (uri.scheme == "content") {
+            contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex != -1) result = cursor.getString(nameIndex)
+                }
+            }
+        }
+        if (result == null) {
+            result = uri.path
+            val cut = result?.lastIndexOf('/')
+            if (cut != null && cut != -1) {
+                result = result?.substring(cut + 1)
+            }
+        }
+        return result
     }
 
     private fun launchPlugin(plugin: PluginInfo) {
@@ -123,7 +216,6 @@ fun HubScreen(plugins: List<PluginInfo>, onLaunchPlugin: (PluginInfo) -> Unit, o
         installedPlugins = plugins.associate { plugin ->
             plugin.id to try { pm.getPackageInfo(plugin.packageName, 0); true } catch (e: PackageManager.NameNotFoundException) { false }
         }
-        // Читаем количество товаров из БД
         productCount = com.inventory.hub.data.ProductDatabase.getInstance(context).productDao().getCount()
     }
 
@@ -136,8 +228,8 @@ fun HubScreen(plugins: List<PluginInfo>, onLaunchPlugin: (PluginInfo) -> Unit, o
                     Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {
-                        Text("Загрузить справочник (CSV)", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text("В базе: $productCount товаров", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Загрузить справочник", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text("Поддерживается: CSV, XLS, XLSX\nВ базе: $productCount товаров", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }

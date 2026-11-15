@@ -14,7 +14,7 @@ class ProductProvider : ContentProvider() {
 
     override fun query(uri: Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?): Cursor? {
         if (uri.path != "/products" || selectionArgs.isNullOrEmpty()) return null
-        
+
         val barcode = selectionArgs[0]
         val product = db?.productDao()?.getByBarcodeSync(barcode) ?: return null
 
