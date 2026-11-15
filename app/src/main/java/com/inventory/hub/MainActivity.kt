@@ -26,6 +26,9 @@ import androidx.compose.ui.unit.dp
 import com.inventory.hub.data.ProductDatabase
 import com.inventory.hub.data.ProductEntity
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.apache.poi.ss.usermodel.CellType
@@ -40,26 +43,29 @@ data class PluginInfo(
 
 class MainActivity : ComponentActivity() {
     private val db by lazy { ProductDatabase.getInstance(this) }
+    private val _productCount = MutableStateFlow(0)
+    val productCount: StateFlow<Int> = _productCount.asStateFlow()
 
     private val plugins = listOf(
         PluginInfo("scanner", "Штрих-код", "Сканирование и сохранение в историю", Icons.Default.QrCodeScanner, "com.inventory.scanner", "https://github.com/kbav26t-netizen/ScannerPlugin/releases/latest/download/scanner-plugin-arm64-v8a-debug.apk"),
         PluginInfo("exporter", "Экспорт Excel", "Выгрузка данных в таблицу", Icons.Default.TableChart, "com.inventory.exporter", "https://github.com/kbav26t-netizen/InventoryExporter/releases/latest/download/exporter-plugin-debug.apk")
     )
 
-    // Принимаем любой файл, фильтрацию делаем по расширению внутри
-    private val filePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+    private val filePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri?
         if (uri != null) loadFile(uri)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
+            val count by productCount.collectAsState()
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     HubScreen(
-                        plugins = plugins, 
-                        onLaunchPlugin = ::launchPlugin, 
-                        onDownloadPlugin = ::downloadPlugin, 
+                        plugins = plugins,
+                        productCount = count,
+                        onLaunchPlugin = ::launchPlugin,
+                        onDownloadPlugin = ::downloadPlugin,
                         onLoadReference = { filePicker.launch("*/*") }
                     )
                 }
@@ -74,11 +80,9 @@ class MainActivity : ComponentActivity() {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@MainActivity, "Обработка файла...", Toast.LENGTH_SHORT).show()
                 }
-                
                 db.productDao().clearAll()
                 val products = mutableListOf<ProductEntity>()
                 val fileName = getFileName(uri) ?: ""
-
                 when {
                     fileName.endsWith(".csv", ignoreCase = true) -> parseCsv(uri, products)
                     fileName.endsWith(".xls", ignoreCase = true) || fileName.endsWith(".xlsx", ignoreCase = true) -> parseExcel(uri, products)
@@ -89,11 +93,10 @@ class MainActivity : ComponentActivity() {
                         return@launch
                     }
                 }
-
                 if (products.isNotEmpty()) {
                     db.productDao().insertAll(products)
+                    _productCount.value = products.size
                     withContext(Dispatchers.Main) {
-                        productCount = products.size
                         Toast.makeText(this@MainActivity, "Успешно загружено: ${products.size} товаров", Toast.LENGTH_LONG).show()
                     }
                 } else {
@@ -116,10 +119,10 @@ class MainActivity : ComponentActivity() {
                 lines.drop(1).forEach { line ->
                     val parts = line.split(";")
                     if (parts.size >= 4) {
-                        val article = parts[1].trim() // Колонка B
-                        val barcode = parts[2].trim() // Колонка C
-                        val name = parts[3].trim()    // Колонка D
-                        val qty = parts.getOrNull(4)?.trim()?.toIntOrNull() ?: 0 // Колонка E
+                        val article = parts[1].trim()
+                        val barcode = parts[2].trim()
+                        val name = parts[3].trim()
+                        val qty = parts.getOrNull(4)?.trim()?.toIntOrNull() ?: 0
                         if (barcode.isNotBlank()) {
                             products.add(ProductEntity(barcode, name, article, qty))
                         }
@@ -133,17 +136,13 @@ class MainActivity : ComponentActivity() {
         contentResolver.openInputStream(uri)?.use { inputStream ->
             val workbook = WorkbookFactory.create(inputStream)
             val sheet = workbook.getSheetAt(0)
-            
-            // Начинаем с 1, чтобы пропустить заголовок (строка 0)
             for (i in 1..sheet.lastRowNum) {
                 val row = sheet.getRow(i) ?: continue
-                
-                val article = getCellValue(row.getCell(1)) // B
-                val barcode = getCellValue(row.getCell(2)) // C
-                val name = getCellValue(row.getCell(3))    // D
-                val qtyStr = getCellValue(row.getCell(4))  // E
+                val article = getCellValue(row.getCell(1))
+                val barcode = getCellValue(row.getCell(2))
+                val name = getCellValue(row.getCell(3))
+                val qtyStr = getCellValue(row.getCell(4))
                 val qty = qtyStr.toIntOrNull() ?: 0
-
                 if (barcode.isNotBlank()) {
                     products.add(ProductEntity(barcode, name, article, qty))
                 }
@@ -157,14 +156,13 @@ class MainActivity : ComponentActivity() {
         return when (cell.cellType) {
             CellType.STRING -> cell.stringCellValue.trim()
             CellType.NUMERIC -> {
-                // Штрихкоды в Excel часто хранятся как числа. Преобразуем Double в Long, чтобы избежать "4.6E12"
                 val num = cell.numericCellValue
                 if (num == num.toLong().toDouble()) num.toLong().toString().trim()
                 else num.toString().trim()
             }
             CellType.BOOLEAN -> cell.booleanCellValue.toString().trim()
             CellType.FORMULA -> {
-                try { cell.numericCellValue.toLong().toString().trim() } 
+                try { cell.numericCellValue.toLong().toString().trim() }
                 catch (e: Exception) { cell.stringCellValue.trim() }
             }
             else -> ""
@@ -183,7 +181,7 @@ class MainActivity : ComponentActivity() {
         }
         if (result == null) {
             result = uri.path
-            val cut = result?.lastIndexOf('/')
+            val cut = result?.lastIndexOf("/")
             if (cut != null && cut != -1) {
                 result = result?.substring(cut + 1)
             }
@@ -196,7 +194,7 @@ class MainActivity : ComponentActivity() {
             component = android.content.ComponentName(plugin.packageName, "${plugin.packageName}.MainActivity")
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
-        try { startActivity(intent) } 
+        try { startActivity(intent) }
         catch (e: Exception) { Toast.makeText(this, "Плагин не установлен", Toast.LENGTH_SHORT).show() }
     }
 
@@ -207,30 +205,29 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HubScreen(plugins: List<PluginInfo>, onLaunchPlugin: (PluginInfo) -> Unit, onDownloadPlugin: (PluginInfo) -> Unit, onLoadReference: () -> Unit) {
+fun HubScreen(plugins: List<PluginInfo>, productCount: Int, onLaunchPlugin: (PluginInfo) -> Unit, onDownloadPlugin: (PluginInfo) -> Unit, onLoadReference: () -> Unit) {
     val context = LocalContext.current
     var installedPlugins by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
-    var productCount by remember { mutableStateOf(0) }
 
     LaunchedEffect(Unit) {
         val pm = context.packageManager
         installedPlugins = plugins.associate { plugin ->
             plugin.id to try { pm.getPackageInfo(plugin.packageName, 0); true } catch (e: PackageManager.NameNotFoundException) { false }
         }
-        productCount = com.inventory.hub.data.ProductDatabase.getInstance(context).productDao().getCount()
     }
 
     Scaffold(topBar = { TopAppBar(title = { Text("Инвентаризация") }) }) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("Выберите режим работы", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp))
-            
+
             Card(modifier = Modifier.fillMaxWidth().clickable { onLoadReference() }.padding(bottom = 16.dp), shape = RoundedCornerShape(16.dp)) {
                 Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {
                         Text("Загрузить справочник", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text("Поддерживается: CSV, XLS, XLSX\nВ базе: $productCount товаров", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Поддерживается: CSV, XLS, XLSX\
+В базе: $productCount товаров", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
