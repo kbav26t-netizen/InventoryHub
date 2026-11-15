@@ -16,7 +16,7 @@ class ProductProvider : ContentProvider() {
         if (uri.path != "/products" || selectionArgs.isNullOrEmpty()) return null
         
         val barcode = selectionArgs[0]
-        val product = db?.productDao()?.getByBarcode(barcode) ?: return null
+        val product = db?.productDao()?.getByBarcodeSync(barcode) ?: return null
 
         val cursor = MatrixCursor(arrayOf("barcode", "name", "article", "quantity"))
         cursor.addRow(arrayOf(product.barcode, product.name, product.article, product.quantity))
